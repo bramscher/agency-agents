@@ -9,7 +9,8 @@ export type Division =
   | "testing"
   | "support"
   | "spatial-computing"
-  | "specialized";
+  | "specialized"
+  | "strategy";
 
 export const DIVISION_LABELS: Record<Division, string> = {
   design: "Design",
@@ -23,6 +24,7 @@ export const DIVISION_LABELS: Record<Division, string> = {
   support: "Support",
   "spatial-computing": "Spatial Computing",
   specialized: "Specialized",
+  strategy: "Strategy",
 };
 
 export const DIVISION_COLORS: Record<Division, string> = {
@@ -37,6 +39,7 @@ export const DIVISION_COLORS: Record<Division, string> = {
   support: "#06B6D4",
   "spatial-computing": "#8B5CF6",
   specialized: "#64748B",
+  strategy: "#14B8A6",
 };
 
 export interface Agent {

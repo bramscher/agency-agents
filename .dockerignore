@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.env
+node_modules
+configurator/node_modules
+configurator/.next
+examples
+integrations
+scripts
+*.log
+.DS_Store

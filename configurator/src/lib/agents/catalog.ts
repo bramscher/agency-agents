@@ -15,6 +15,7 @@ const AGENT_DIRS: Division[] = [
   "support",
   "spatial-computing",
   "specialized",
+  "strategy",
 ];
 
 function findMdFiles(dir: string): string[] {
