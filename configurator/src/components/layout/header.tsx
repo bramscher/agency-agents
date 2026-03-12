@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Menu } from "lucide-react";
@@ -44,8 +45,13 @@ function getPageTitle(pathname: string): string {
 
 export function Header() {
   const pathname = usePathname();
-  const count = useAgentSelection((s) => s.count());
+  const storeCount = useAgentSelection((s) => s.count());
   const title = getPageTitle(pathname);
+
+  // Defer reading persisted store until after hydration to avoid mismatch
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const count = mounted ? storeCount : 0;
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-card px-4 lg:px-6">
