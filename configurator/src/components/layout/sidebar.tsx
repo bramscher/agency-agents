@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutGrid,
   Users,
@@ -14,10 +15,14 @@ import {
   ArrowRightLeft,
   Activity,
   Compass,
+  UsersRound,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { createClient } from "@/lib/supabase/client";
 
 interface NavItem {
   label: string;
@@ -32,6 +37,10 @@ const configuratorLinks: NavItem[] = [
   { label: "Deploy", href: "/configurator/deploy", icon: Rocket },
 ];
 
+const teamLinks: NavItem[] = [
+  { label: "My Teams", href: "/teams", icon: UsersRound },
+];
+
 const missionControlLinks: NavItem[] = [
   { label: "Dashboard", href: "/mission-control", icon: LayoutGrid },
   { label: "Agents", href: "/mission-control/agents", icon: Bot },
@@ -40,6 +49,8 @@ const missionControlLinks: NavItem[] = [
   { label: "Handoffs", href: "/mission-control/handoffs", icon: ArrowRightLeft },
   { label: "Metrics", href: "/mission-control/metrics", icon: Activity },
 ];
+
+const sectionRoots = ["/configurator", "/mission-control", "/teams"];
 
 function NavSection({
   title,
@@ -56,18 +67,12 @@ function NavSection({
         {title}
       </span>
       {items.map((item) => {
-        const isActive =
-          item.href === pathname ||
-          (item.href !== "/configurator" &&
-            item.href !== "/mission-control" &&
-            pathname.startsWith(item.href));
-
-        // Handle exact match for section root routes
         const isExactRoot =
-          (item.href === "/configurator" || item.href === "/mission-control") &&
-          pathname === item.href;
-
-        const active = isExactRoot || isActive;
+          sectionRoots.includes(item.href) && pathname === item.href;
+        const isActive =
+          isExactRoot ||
+          (!sectionRoots.includes(item.href) &&
+            pathname.startsWith(item.href));
 
         return (
           <Link
@@ -75,7 +80,7 @@ function NavSection({
             href={item.href}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              active
+              isActive
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
@@ -85,6 +90,68 @@ function NavSection({
           </Link>
         );
       })}
+    </div>
+  );
+}
+
+function UserSection() {
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? null);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setEmail(session?.user?.email ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) return null;
+
+  if (!email) {
+    return (
+      <div className="p-3 border-t border-border">
+        <Link
+          href="/auth/login"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          <LogIn className="size-4 shrink-0" />
+          Sign In
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 border-t border-border">
+      <div className="flex items-center gap-3 px-3 py-1">
+        <div className="flex size-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary shrink-0">
+          {email[0].toUpperCase()}
+        </div>
+        <span className="flex-1 text-xs text-muted-foreground truncate">
+          {email}
+        </span>
+        <button
+          onClick={async () => {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            router.refresh();
+          }}
+          className="shrink-0 rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Sign out"
+        >
+          <LogOut className="size-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -112,6 +179,7 @@ export function SidebarContent() {
             items={configuratorLinks}
             pathname={pathname}
           />
+          <NavSection title="Teams" items={teamLinks} pathname={pathname} />
           <NavSection
             title="Mission Control"
             items={missionControlLinks}
@@ -119,6 +187,9 @@ export function SidebarContent() {
           />
         </nav>
       </ScrollArea>
+
+      {/* User section at bottom */}
+      <UserSection />
     </div>
   );
 }

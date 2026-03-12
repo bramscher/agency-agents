@@ -1,17 +1,28 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentSelection } from "@/lib/store/agent-selection";
-import { ChevronUp, ChevronDown, X, ArrowRight, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  ChevronUp,
+  ChevronDown,
+  X,
+  ArrowRight,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 
 export function SelectionCart() {
   const { getSelectedArray, removeAgent, clearAll, count } =
     useAgentSelection();
   const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   const selectedCount = count();
   const selectedAgents = getSelectedArray();
@@ -32,6 +43,56 @@ export function SelectionCart() {
     clearAll();
     setExpanded(false);
   }, [clearAll]);
+
+  const handleSaveAsTeam = useCallback(async () => {
+    setSaving(true);
+    const supabase = createClient();
+
+    // Check if user is logged in
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      router.push("/auth/login?redirect=/teams");
+      return;
+    }
+
+    // Create team
+    const { data: team, error: teamErr } = await supabase
+      .from("teams")
+      .insert({
+        name: `Team (${selectedCount} agents)`,
+        user_id: user.id,
+      })
+      .select("id")
+      .single();
+
+    if (teamErr || !team) {
+      console.error("Error creating team:", teamErr?.message);
+      setSaving(false);
+      return;
+    }
+
+    // Look up agent IDs by slug
+    const slugs = selectedAgents.map((a) => a.slug);
+    const { data: agents } = await supabase
+      .from("agents")
+      .select("id, slug")
+      .in("slug", slugs);
+
+    if (agents && agents.length > 0) {
+      const teamAgentRows = agents.map((a, i) => ({
+        team_id: team.id,
+        agent_id: a.id,
+        sort_order: i,
+      }));
+
+      await supabase.from("team_agents").insert(teamAgentRows);
+    }
+
+    clearAll();
+    router.push(`/teams/${team.id}`);
+  }, [selectedAgents, selectedCount, clearAll, router]);
 
   // Do not render when nothing is selected
   if (selectedCount === 0) {
@@ -76,15 +137,20 @@ export function SelectionCart() {
                 className="text-destructive hover:text-destructive"
               >
                 <Trash2 className="size-3.5 mr-1" />
-                Clear All
+                Clear
               </Button>
               <div className="flex-1" />
               <Button
                 size="sm"
+                variant="outline"
                 render={<Link href="/configurator/customize" />}
               >
-                Continue
+                Customize
                 <ArrowRight className="size-3.5 ml-1" />
+              </Button>
+              <Button size="sm" onClick={handleSaveAsTeam} disabled={saving}>
+                <UsersRound className="size-3.5 mr-1" />
+                {saving ? "Saving..." : "Save Team"}
               </Button>
             </div>
           </div>
