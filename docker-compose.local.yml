@@ -1,0 +1,32 @@
+###############################################################################
+# The Agency — Configurator Only (no OpenClaw gateway)
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml up --build
+#
+# The Configurator UI will be at http://localhost:3000
+# Mission Control will show "Disconnected" (no gateway running)
+###############################################################################
+
+services:
+  configurator:
+    build:
+      context: ./configurator
+      dockerfile: Dockerfile
+    ports:
+      - "${CONFIGURATOR_PORT:-3000}:3000"
+    environment:
+      - AGENT_ROOT=/app
+    volumes:
+      - ./design:/app/design:ro
+      - ./engineering:/app/engineering:ro
+      - ./game-development:/app/game-development:ro
+      - ./marketing:/app/marketing:ro
+      - ./paid-media:/app/paid-media:ro
+      - ./product:/app/product:ro
+      - ./project-management:/app/project-management:ro
+      - ./spatial-computing:/app/spatial-computing:ro
+      - ./specialized:/app/specialized:ro
+      - ./support:/app/support:ro
+      - ./testing:/app/testing:ro
+    restart: unless-stopped

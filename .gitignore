@@ -19,12 +19,11 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# Node.js (if adding web tools later)
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 yarn.lock
 
 # Python (if adding scripts)
@@ -74,3 +73,16 @@ integrations/cursor/rules/
 integrations/aider/CONVENTIONS.md
 integrations/windsurf/.windsurfrules
 integrations/openclaw/
+
+# Configurator build artifacts
+configurator/.next/
+configurator/node_modules/
+
+# Environment secrets
+.env
+
+# Deployment output
+deployments/
+
+# Claude Code session data
+.claude/

@@ -1,0 +1,72 @@
+###############################################################################
+# The Agency — Full Stack
+#
+# Services:
+#   1. configurator  — Next.js web UI (browse agents, build packages, mission control)
+#   2. openclaw       — OpenClaw gateway (runs the AI agents)
+#
+# Usage:
+#   cp .env.example .env        # edit with your API keys
+#   docker compose up --build   # start everything
+#
+# The Configurator UI will be at  http://localhost:3000
+# The OpenClaw gateway will be at ws://localhost:18789
+# The OpenClaw dashboard at       http://localhost:18789/openclaw
+###############################################################################
+
+services:
+  # ---------- Configurator (Next.js) ----------
+  configurator:
+    build:
+      context: ./configurator
+      dockerfile: Dockerfile
+    ports:
+      - "${CONFIGURATOR_PORT:-3000}:3000"
+    environment:
+      - OPENCLAW_GATEWAY_URL=http://openclaw:18789
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      - AGENT_ROOT=/app
+    volumes:
+      # Mount the agent markdown files so the API can read them at runtime
+      - ./design:/app/design:ro
+      - ./engineering:/app/engineering:ro
+      - ./game-development:/app/game-development:ro
+      - ./marketing:/app/marketing:ro
+      - ./paid-media:/app/paid-media:ro
+      - ./product:/app/product:ro
+      - ./project-management:/app/project-management:ro
+      - ./spatial-computing:/app/spatial-computing:ro
+      - ./specialized:/app/specialized:ro
+      - ./support:/app/support:ro
+      - ./testing:/app/testing:ro
+      - ./strategy:/app/strategy:ro
+    depends_on:
+      openclaw:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- OpenClaw Gateway ----------
+  openclaw:
+    image: openclaw/openclaw:latest
+    ports:
+      - "${OPENCLAW_PORT:-18789}:18789"
+    environment:
+      - OPENCLAW_GATEWAY_PORT=18789
+      - OPENCLAW_GATEWAY_HOST=0.0.0.0
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+      # Mount generated deployment packages here if needed
+      - ./deployments:/home/node/.openclaw/deployments
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:18789/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  openclaw-data:
