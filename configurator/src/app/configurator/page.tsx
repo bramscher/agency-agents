@@ -7,13 +7,8 @@ import { AgentGrid } from "@/components/configurator/agent-grid";
 import { SelectionCart } from "@/components/configurator/selection-cart";
 import type { Agent, Division } from "@/types/agent";
 import { DIVISION_LABELS, DIVISION_COLORS } from "@/types/agent";
-
-interface AgentsResponse {
-  agents: Agent[];
-  divisions: { division: Division; count: number }[];
-  total: number;
-  filtered: number;
-}
+import { createClient } from "@/lib/supabase/client";
+import { useMemo } from "react";
 
 export default function ConfiguratorPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -25,56 +20,85 @@ export default function ConfiguratorPage() {
   const [selectedDivisions, setSelectedDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const supabase = useMemo(() => createClient(), []);
+
   const fetchAgents = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (search) {
-        params.set("q", search);
-      }
+      let query = supabase
+        .from("agents")
+        .select("*")
+        .eq("is_system", true)
+        .order("name");
+
       if (selectedDivisions.length > 0) {
-        params.set("divisions", selectedDivisions.join(","));
+        query = query.in("division", selectedDivisions);
       }
 
-      const queryString = params.toString();
-      const url = `/api/agents${queryString ? `?${queryString}` : ""}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch agents: ${res.status}`);
+      if (search) {
+        query = query.or(
+          `name.ilike.%${search}%,description.ilike.%${search}%,vibe.ilike.%${search}%`
+        );
       }
-      const data: AgentsResponse = await res.json();
 
-      setAgents(data.agents);
-      setTotal(data.total);
-      // Only update the division counts on the initial load so counts
-      // remain stable when the user is filtering by search query.
-      setDivisions((prev) => (prev.length === 0 ? data.divisions : prev));
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching agents:", error.message);
+        return;
+      }
+
+      // Map DB rows to Agent type
+      const mapped: Agent[] = (data ?? []).map((row) => ({
+        slug: row.slug,
+        name: row.name,
+        description: row.description,
+        division: row.division as Division,
+        subDivision: row.sub_division ?? undefined,
+        color: row.color,
+        emoji: row.emoji,
+        vibe: row.vibe,
+        filePath: "", // not used with Supabase
+      }));
+
+      setAgents(mapped);
+      setTotal(mapped.length);
     } catch (err) {
       console.error("Error fetching agents:", err);
     } finally {
       setLoading(false);
     }
-  }, [search, selectedDivisions]);
+  }, [search, selectedDivisions, supabase]);
+
+  // Load division counts once on mount
+  useEffect(() => {
+    async function loadDivisions() {
+      const { data, error } = await supabase
+        .from("agents")
+        .select("division")
+        .eq("is_system", true);
+
+      if (error || !data) return;
+
+      const counts = new Map<Division, number>();
+      for (const row of data) {
+        const d = row.division as Division;
+        counts.set(d, (counts.get(d) || 0) + 1);
+      }
+
+      const divList = Array.from(counts.entries())
+        .map(([division, count]) => ({ division, count }))
+        .sort((a, b) => a.division.localeCompare(b.division));
+
+      setDivisions(divList);
+    }
+    loadDivisions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
-
-  // Reload division counts when the component mounts (always)
-  useEffect(() => {
-    async function loadDivisions() {
-      try {
-        const res = await fetch("/api/agents");
-        if (res.ok) {
-          const data: AgentsResponse = await res.json();
-          setDivisions(data.divisions);
-        }
-      } catch {
-        // Silently fail -- the main fetch will also populate divisions
-      }
-    }
-    loadDivisions();
-  }, []);
 
   return (
     <div className="flex min-h-screen">
