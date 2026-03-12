@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,9 +11,8 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  ArrowRight,
   Trash2,
-  UsersRound,
+  MessageSquare,
 } from "lucide-react";
 
 export function SelectionCart() {
@@ -22,10 +20,19 @@ export function SelectionCart() {
     useAgentSelection();
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [teamName, setTeamName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   const selectedCount = count();
   const selectedAgents = getSelectedArray();
+
+  // Focus name input when expanded
+  useEffect(() => {
+    if (expanded) {
+      setTimeout(() => nameInputRef.current?.focus(), 100);
+    }
+  }, [expanded]);
 
   const toggleExpanded = useCallback(() => {
     setExpanded((prev) => !prev);
@@ -44,7 +51,7 @@ export function SelectionCart() {
     setExpanded(false);
   }, [clearAll]);
 
-  const handleSaveAsTeam = useCallback(async () => {
+  const handleCreateTeam = useCallback(async () => {
     setSaving(true);
     const supabase = createClient();
 
@@ -53,15 +60,19 @@ export function SelectionCart() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      router.push("/auth/login?redirect=/teams");
+      // Store intent, redirect to login
+      router.push("/auth/login?redirect=/configurator");
+      setSaving(false);
       return;
     }
+
+    const name = teamName.trim() || `My Team (${selectedCount} agents)`;
 
     // Create team
     const { data: team, error: teamErr } = await supabase
       .from("teams")
       .insert({
-        name: `Team (${selectedCount} agents)`,
+        name,
         user_id: user.id,
       })
       .select("id")
@@ -91,8 +102,10 @@ export function SelectionCart() {
     }
 
     clearAll();
+    setTeamName("");
+    // Go straight to team detail where they can chat or manage agents
     router.push(`/teams/${team.id}`);
-  }, [selectedAgents, selectedCount, clearAll, router]);
+  }, [selectedAgents, selectedCount, clearAll, router, teamName]);
 
   // Do not render when nothing is selected
   if (selectedCount === 0) {
@@ -105,7 +118,7 @@ export function SelectionCart() {
         {/* Expanded agent list */}
         {expanded && (
           <div className="border-b">
-            <ScrollArea className="max-h-64">
+            <ScrollArea className="max-h-48">
               <div className="p-3 space-y-1">
                 {selectedAgents.map((agent) => (
                   <div
@@ -128,30 +141,42 @@ export function SelectionCart() {
               </div>
             </ScrollArea>
 
-            {/* Actions inside expanded area */}
-            <div className="flex items-center gap-2 px-3 pb-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearAll}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="size-3.5 mr-1" />
-                Clear
-              </Button>
-              <div className="flex-1" />
-              <Button
-                size="sm"
-                variant="outline"
-                render={<Link href="/configurator/customize" />}
-              >
-                Customize
-                <ArrowRight className="size-3.5 ml-1" />
-              </Button>
-              <Button size="sm" onClick={handleSaveAsTeam} disabled={saving}>
-                <UsersRound className="size-3.5 mr-1" />
-                {saving ? "Saving..." : "Save Team"}
-              </Button>
+            {/* Team name + actions */}
+            <div className="px-3 pb-3 space-y-2.5">
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCreateTeam();
+                  }
+                }}
+                placeholder="Team name (optional)"
+                className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAll}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="size-3.5 mr-1" />
+                  Clear
+                </Button>
+                <div className="flex-1" />
+                <Button
+                  size="sm"
+                  onClick={handleCreateTeam}
+                  disabled={saving}
+                >
+                  <MessageSquare className="size-3.5 mr-1" />
+                  {saving ? "Creating..." : "Create Team"}
+                </Button>
+              </div>
             </div>
           </div>
         )}
